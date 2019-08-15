@@ -1,0 +1,115 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+#### Machine Learning Exercise 1 ####
+
+##compute the cost for linear regression
+def computeCost(X,y,theta):
+    m = len(y)
+    J=0
+    temp=np.sum(np.square(np.subtract(np.matmul(X,theta),y)))
+    J=np.divide(temp,2*m)
+    return J
+
+##Gradient Descent
+def gradient_Descent(X,y,theta,alpha,num_iters):
+    m=len(y)
+    J_history= np.zeros((num_iters))
+    for iter in range(0,num_iters-1):
+        temp1=np.sum(np.subtract(np.matmul(X,theta),y))
+        temp2=np.sum(np.multiply(np.subtract(np.matmul(X,theta),y),X[:,[1]]))
+        tempmat=np.matrix([temp1, temp2]).transpose()
+        theta=np.subtract(theta,np.multiply(alpha/m,tempmat))
+        J_history[iter] = computeCost(X,y,theta)
+    outp=dict()
+    outp['theta'] = theta
+    outp['J_history'] = J_history  ##keeps cost trend during grad descent
+    return outp
+
+##First read the data in ##
+fhand=open('ex1data1.txt', 'r')
+data=fhand.read().split('\n')
+Xl=list()
+yl=list()
+for item in data:
+    if len(item)<1: continue
+    Xl.append(float(item.split(',')[0]))
+    yl.append(float(item.split(',')[1]))
+
+##Plot the Data
+plt.scatter(Xl, yl) # Plot the data
+plt.ylabel('Profit in $10,000s') # Set the y-axis label
+plt.xlabel('Population of City in 10,000s') # Set the x-axis label
+plt.show()
+
+Xm=np.matrix(Xl).transpose()
+ym=np.matrix(yl).transpose()
+ones=np.matrix(np.ones(len(Xl))).transpose()
+Xm=np.append(ones,Xm,1)
+
+#initialize the fitting parameters
+theta=np.matrix([0,0]).transpose()
+
+#some gradient descent settings
+iterations=1500
+alpha=0.01
+
+print('Testing the cost function...\n')
+J = computeCost(Xm,ym,theta)
+print('With theta=',theta , 'Cost computed =', J)
+print('Expected cost value (approx) is 32.07\n')
+J = computeCost(Xm, ym, np.matrix([-1,2]).transpose())
+print('With theta=',[-1,2], 'Cost computed =', J)
+print('Expected cost value (approx) is 54.24\n')
+
+input('Program paused. Press enter to continue.\n')
+print('Running Gradient Descent...')
+GradOut=gradient_Descent(Xm,ym,theta,alpha,iterations)
+print('Selected theta = ', GradOut['theta'].transpose())
+print('Expected theta was approximately [-3.6303 ; 1.1664]\n')
+
+input('Program paused. Press enter to continue.\n')
+##Plot Linear Regression Line
+plt.scatter(Xl, yl) # Plot the data
+plt.ylabel('Profit in $10,000s') # Set the y-axis label
+plt.xlabel('Population of City in 10,000s') # Set the x-axis label
+plt.title('Linear Regression Line')
+plt.plot(Xm[:,1], np.matmul(Xm,GradOut['theta']), color='r')
+plt.show()
+
+
+input('Program paused. Press enter to continue.\n')
+##make sample predictions
+predict1=np.matmul(np.matrix([1,3.5]),GradOut['theta'])
+predict2=np.matmul(np.matrix([1,7]),GradOut['theta'])
+print('For population = 35,000, we predict a profit of', predict1[0,0]*10000, '\n')
+print('For population = 70,000, we predict a profit of', predict2[0,0]*10000, '\n')
+
+
+input('Program paused. Press enter to continue.\n')
+##Visualize J(theta_0, theta_1)
+theta0_vals = np.linspace(-10, 10, 100)
+theta1_vals = np.linspace(-1, 4, 100)
+theta0, theta1 = np.meshgrid(theta0_vals, theta1_vals)
+J_vals = np.zeros((len(theta0_vals), len(theta1_vals)))
+##Fill out J_vals
+for i in range(len(theta0_vals)):
+    for j in range(len(theta1_vals)):
+        t = np.matrix([theta0_vals[i], theta1_vals[j]]).transpose()
+        J_vals[i,j] = computeCost(Xm, ym, t)
+
+ax = plt.axes(projection='3d')        
+ax.plot_surface(theta0, theta1, J_vals.transpose())
+plt.xlabel('theta_0')
+plt.ylabel('theta_1')
+plt.show()
+
+
+##Create a contour plot
+lev_exp = np.linspace(-2, 3, 20)
+levs = np.power(10, lev_exp.astype(float))
+plt.contour(theta0, theta1, J_vals.transpose(), levs)
+plt.xlabel('theta_0')
+plt.ylabel('theta_1')
+plt.plot(GradOut['theta'].item(0), GradOut['theta'].item(1), 'ro', markersize=8)
