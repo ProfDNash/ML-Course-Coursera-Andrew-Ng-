@@ -1,0 +1,125 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.optimize as opt
+
+
+#### Machine Learning Exercise 2 Part 1: Logistic Regression ####
+
+def plot_Data(X,y):  ##scatterplot with multiple marks
+    fig, ax = plt.subplots()
+    accepted=np.where(y==1)
+    denied=np.where(y==0)
+    plt.scatter(X[denied,0].A1, X[denied,1].A1, marker=u'o') # Plot the data #.A1 converts to 1-D array
+    plt.scatter(X[accepted,0].A1, X[accepted,1].A1, marker=u'+') # Plot the data #.A1 converts to 1-D array
+    plt.ylabel('Exam 1 Score') # Set the y-axis label
+    plt.xlabel('Exam 2 Score') # Set the x-axis label
+    plt.legend(['Not Admitted', 'Admitted'])
+    plt.show()
+
+##Cost Function##
+def cost(theta,X,y):
+    if theta.shape==(theta.shape[0],):
+        theta=theta.reshape((theta.shape[0],1))  ##reshape to 1-D if necessary
+    p1 = sigmoid(np.dot(X,theta))  ##predicted probability of label 1
+    log_l = (-y.transpose())*np.log(p1) - (1-y.transpose())*np.log(1-p1) # log-likelihood vector
+    return (log_l/len(X)).item(0)
+
+##Gradient##
+def gradi(theta,X,y):
+    if theta.shape==(theta.shape[0],):
+        theta=theta.reshape((theta.shape[0],1))  ##reshape to 1-D if necessary
+    p1 = sigmoid(np.dot(X,theta))  ##predicted probability of label 1
+    error = p1 - y # difference between label and prediction
+    grad = sum(np.dot(error.transpose(), X)) / y.size # gradient vector
+    grad = np.asarray(grad).reshape(-1)
+    return grad
+
+##Vectorized Sigmoid Function##
+def sigmoid(z):
+    return 1 / (1 + np.exp(- z))
+
+
+##Plot Boundary function##
+def plot_Boundary(theta,X,y):
+    fig, ax = plt.subplots()
+    accepted=np.where(y==1)
+    denied=np.where(y==0)
+    plot_x = [min(X[:,1]).tolist()[0][0]-2,  max(X[:,1]).tolist()[0][0]+2];
+    plot_y = [(-1/theta[2])*(theta[1]*plot_x[0] + theta[0]),(-1/theta[2])*(theta[1]*plot_x[1] + theta[0])];
+    plt.plot(plot_x,plot_y,'ro-')
+    plt.plot(X[denied,1].A1, X[denied,2].A1,'o') # Plot the data #.A1 converts to 1-D array
+    plt.plot(X[accepted,1].A1, X[accepted,2].A1,'+') # Plot the data #.A1 converts to 1-D array
+    plt.ylabel('Exam 1 Score') # Set the y-axis label
+    plt.xlabel('Exam 2 Score') # Set the x-axis label
+    plt.title('Decision Boundary using theta from fmin_tnc')
+    plt.legend(['Decision Boundary', 'Not Admitted', 'Admitted'])
+    plt.show()
+
+
+##First read the data in and setup variables ##
+fhand=open('ex2data1.txt', 'r')
+data=fhand.read().split('\n')
+X=list()
+y=list()
+for item in data:
+    if len(item)<1: continue
+    X.append(float(item.split(',')[0]))
+    X.append(float(item.split(',')[1]))
+    y.append(int(item.split(',')[2]))
+
+m=len(y)
+X=np.matrix(X).reshape(m,2)
+y=np.matrix(y).transpose()
+#Add column of all 1's
+ones=np.matrix(np.ones(m)).transpose() 
+Xm=np.append(ones,X,1)
+n = Xm.shape[1]
+
+##Plot Data##
+print('Plotting data with + indicating (y = 1) examples and o indicating (y = 0) examples.\n')
+plot_Data(X,np.array(y))
+
+##Compute cost and gradient##
+input('\nProgram paused.  Press enter to continue.\n')
+init_theta=np.matrix(np.zeros(n)).transpose()
+J = cost(init_theta, Xm, y)
+grad = gradi(init_theta, Xm, y)
+print('Cost at initial theta (zeros): ', J)
+print('Expected cost (approx): 0.693')
+print('Gradient at initial theta (zeros): ', grad)
+print('Expected gradient (approx): [-0.1000 ; -12.0092 ; -11.2628]\n\n')
+
+##Compute cost and gradient with non-zero theta##
+test_theta=np.matrix([-24,0.2,0.2]).transpose()
+J = cost(test_theta, Xm, y)
+grad = gradi(test_theta, Xm, y)
+print('Cost at test theta ([-24 ; 0.2 ; 0.2]): ', J)
+print('Expected cost (approx): 0.218')
+print('Gradient at test theta: ', grad)
+print('Expected gradient (approx): [0.043 ; 2.566 ; 2.647]\n\n')
+
+##Now optimize theta via scipy function fmin_bfgs##
+input('\nProgram paused.  Press enter to continue.\n')
+
+
+##Now optimize theta via scipy function fmin_tnc
+tmin=opt.fmin_tnc(func=cost, x0=[0,0,0], fprime=gradi, args=(Xm, y))
+print('Minimum theta found by fmin_tnc =', tmin[0])
+print('Expected theta (approx): [-25.161; 0.206; 0.201]')
+print('Cost at minimum theta found by fmin_tnc =', cost(tmin[0],Xm,y))
+print('Expected cost (approx): 0.203')
+
+##Plot Boundary##
+plot_Boundary(tmin[0],Xm,y)
+
+
+##Check prediction on a test student##
+input('\nProgram paused.  Press enter to continue.\n')
+prob = sigmoid((np.dot(np.matrix([1, 45, 85]),np.matrix(tmin[0]).transpose())).item(0))
+print('For a student with scores 45 and 85, we predict an admission probability of ', prob)
+print('Expected value: 0.775 +/- 0.002\n\n')
+
+##Prediction Accuracy
+p=(sigmoid(np.dot(Xm,tmin[0]))>=0.5)
+print('Prediction accuracy on our training set is', np.sum(p==y.transpose()), '%')
+print('Expected accuracy (approx): 89.0 %')
