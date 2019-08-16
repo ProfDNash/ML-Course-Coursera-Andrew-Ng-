@@ -1,0 +1,135 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.optimize as opt
+
+
+#### Machine Learning Exercise 2 Part 2: Logistic Regression with Regularization ####
+
+def plot_Data(X,y):  ##scatterplot with multiple marks
+    accepted=np.where(y==1)
+    denied=np.where(y==0)
+    plt.scatter(X[denied,0].A1, X[denied,1].A1, marker=u'o') # Plot the data #.A1 converts to 1-D array
+    plt.scatter(X[accepted,0].A1, X[accepted,1].A1, marker=u'+') # Plot the data #.A1 converts to 1-D array
+
+## Add polynomial features of chosen degree to the model##
+def map_Feature(X1,X2):
+    degree=6
+    tri=int((degree+1)*(degree+2)/2)  ##counts number of terms created, including all ones column
+    m=len(X1)
+    out=np.ones(m)
+    for i in range(1,degree+1):
+        for j in range(0,i+1):
+            out=np.append(out,np.multiply(np.power(X1,i-j),np.power(X2,j)))
+    out=np.matrix(out).reshape(tri,m).transpose()
+    return out
+
+##Cost Function for Logistic Regression with Regularization##
+def cost_Reg(theta,X,y,lmbda):  ##cost function with regularization
+    p_1 = sigmoid(np.dot(X,theta))  ##predicted probability of label 1
+    log_2 = np.log(p_1)*(-y) - np.log(1-p_1)*(1-y)
+    J=(log_2/len(X)).item(0)
+    J=J+lmbda*sum(np.power(theta[1:len(theta)],2))/(2*len(X))
+    return J
+
+##Gradient for Logistic Regression with Regularization##
+def gradi_Reg(theta,X,y,lmbda):
+    p_1 = sigmoid(np.dot(X,theta))  ##predicted probability of label 1
+    error = p_1 - y.transpose() # difference between label and prediction
+    grad = np.dot(error, X) / y.size # gradient vector
+    temp=theta
+    temp[0]=0
+    grad = grad + np.multiply(lmbda/y.size, temp)
+    grad = np.asarray(grad).reshape(-1)
+    return grad
+
+##Vectorized Sigmoid Function##
+def sigmoid(z):
+    return 1 / (1 + np.exp(- z))
+
+
+##Plot Boundary function##
+def plot_Boundary(theta,X,y,lmbda):
+    u = np.linspace(-1, 1.5, 50)
+    v = np.linspace(-1, 1.5, 50)
+    z = np.zeros(shape=(len(u), len(v)))
+    for i in range(len(u)):
+        for j in range(len(v)):
+            z[i, j] = (map_Feature(np.matrix(u[i]), np.matrix(v[j])).dot(np.array(theta)))
+    z=z.T
+    colors=dict()
+    colors['0'] = 'red'
+    colors['1'] = 'blue'
+    colors['10'] = 'green'
+    colors['100'] = 'orange'
+    P1=plt.contour(u,v,z,[0], colors=colors[str(lmbda)])
+    P1.collections[0].set_label('lambda = {}'.format(lmbda))  ##adds label to z=0 so it will appear in the legend
+
+
+##First read the data in ##
+fhand=open('ex2data2.txt', 'r')
+data=fhand.read().split('\n')
+X=list()
+y=list()
+for item in data:
+    if len(item)<1: continue
+    X.append(float(item.split(',')[0]))
+    X.append(float(item.split(',')[1]))
+    y.append(int(item.split(',')[2]))
+
+m=len(y)
+X=np.matrix(X).reshape(m,2)
+print('Plotting data with + indicating (y = 1) examples and o indicating (y = 0) examples.\n')
+plot_Data(Xmat,np.array(y))
+plt.ylabel('Microchip Test 1') # Set the y-axis label
+plt.xlabel('Microchip Test 2') # Set the x-axis label
+plt.legend(['y=1', 'y=0'])
+plt.show()
+
+ymat=np.matrix(y).transpose()
+
+##Add polynomial features using feature mapping##
+Xm=map_Feature(X[:,0],X[:,1])
+init_theta=np.zeros(Xm.shape[1]).tolist() #initialize the fitting parameters
+lmbda=1
+##Calculate cost and gradient at initial theta##
+J = cost_Reg(init_theta, Xm, ymat, lmbda)
+grad = gradi_Reg(init_theta, Xm, ymat, lmbda)
+print('Cost at initial theta (zeros): ', J)
+print('Expected cost (approx): 0.693')
+print('Gradient at inital theta (zeros) - first 5 values only: \n', grad[0:5])
+print('Expected gradients (approx) - first 5 values only: [0.0085 ; 0.0188 ; 0.0001 ; 0.0503 ; 0.0115]')
+
+##Test again with theta of all 1's, and lambda = 10##
+input('\nProgram paused.  Press enter to continue.\n')
+test_theta=np.ones(Xm.shape[1]).tolist()
+lmbda=10
+J = cost_Reg(test_theta, Xm, ymat, lmbda)
+grad = gradi_Reg(test_theta, Xm, ymat, lmbda)
+print('Cost at test theta (with lambda=10): ', J)
+print('Expected cost (approx): 3.16')
+print('Gradient at test theta - first 5 values only: \n', grad[0:5])
+print('Expected gradients (approx) - first 5 values only: [0.3460 ; 0.1614 ; 0.1948 ; 0.2269 ; 0.0922]')
+
+
+##Now optimize theta via scipy function fmin_bfgs for different values of lambda##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Generating decision boundaries...')
+lmbda=[0, 1, 10, 100]
+
+###Plot Boundaries##
+tmins=dict()
+for lam in lmbda:
+    tmins[str(lam)]=opt.fmin_bfgs(cost_Reg, init_theta, fprime=gradi_Reg, args=(Xm, ymat, lam), disp=0)
+    plot_Boundary(tmins[str(lam)],Xm,ymat,lam)
+plot_Data(X, ymat)
+plt.ylabel('Microchip Test 1') # Set the y-axis label
+plt.xlabel('Microchip Test 2') # Set the x-axis label
+plt.title('Decision Boundaries for Logistic Regression')
+plt.legend()
+plt.show()
+
+##Prediction Accuracy##
+for lam in lmbda:
+    p=(sigmoid(np.dot(Xm,tmins[str(lam)]))>=0.5)
+    print('Prediction accuracy with lambda={} is: '.format(lam), np.sum(p==ymat.transpose())*(100/len(ymat)), '%')
+print('Expected accuracy with lambda = 1 (approx): 83.1 %')
