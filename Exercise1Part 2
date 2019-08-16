@@ -1,0 +1,107 @@
+from mpl_toolkits import mplot3d
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+#### Machine Learning Exercise 1 Part 2: Multivariable Linear Regression####
+
+##3D Plotter##
+def plot_Data_3D(X,y):
+    ax = plt.axes(projection='3d')
+    zdata=np.hstack(y).tolist()[0]
+    xdata=np.hstack(X[:,0]).tolist()
+    ydata=np.hstack(X[:,1]).tolist()
+    ax.scatter3D(xdata, ydata, zdata)
+    plt.show()
+    
+##Feature Normalization##
+def feature_Normalize(X):
+    mu = np.mean(X,axis=0)
+    std= np.std(X,axis=0)
+    X_norm=(X-mu)/std
+    return X_norm, mu, std
+
+##Cost Function##
+def Cost(X,y,theta):
+    m = len(y)
+    J=0
+    temp=np.sum(np.square(np.subtract(np.matmul(X,theta),y)))
+    J=np.divide(temp,2*m)
+    return J
+
+##Gradient Descent##
+def gradient_DescentMulti(X,y,theta,alpha,num_iters):
+    m=len(y)
+    J_history= np.zeros((num_iters))
+    for iter in range(0,num_iters-1):
+        temp=((X*theta-y).transpose()*X).transpose()
+        J_history[iter] = Cost(X,y,theta)
+        theta=theta-np.multiply(alpha/m,temp)
+    outp=dict()
+    outp['theta'] = theta
+    outp['J_history'] = J_history
+    return outp
+
+##Normal Equations##
+def normalEqn(X,y):
+    theta = np.linalg.pinv(X.transpose()*X)*X.transpose()*y
+    return theta
+
+##First read the data in ##
+fhand=open('ex1data2.txt', 'r')
+data=fhand.read().split('\n')
+X=list()
+y=list()
+for item in data:
+    if len(item)<1: continue
+    X.append(int(item.split(',')[0]))
+    X.append(int(item.split(',')[1]))
+    y.append(int(item.split(',')[2]))
+
+m=len(y)
+X=np.matrix(X).reshape(m,2)
+y=np.matrix(y).transpose()
+
+##Print out some example data points and plot the data##
+print('Here are the first ten examples from the data set.  And a plot of the data.')
+print('X = ', X[0:10,:], '\n y =', y[0:10,:])
+plot_Data_3D(X,y)
+
+##Normalize features##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Normalizing features...\n')
+Xnorm,mu,std=feature_Normalize(X)
+ones=np.matrix(np.ones(m)).transpose()
+Xm=np.append(ones,Xnorm,1) ##add column of ones
+
+##Run gradient descent##
+print('Running gradient descent...\n')
+theta=np.matrix([0,0,0]).transpose()  #initialize the fitting parameters
+#some gradient descent settings
+iterations=40
+alpha=1
+GradOut=gradient_DescentMulti(Xm,y,theta,alpha,iterations)
+
+##plot the convergence graph##
+plt.plot(range(len(GradOut['J_history'])), GradOut['J_history'], '-b')
+plt.xlabel('Number of Iterations')
+plt.ylabel('Cost (J)')
+plt.show()
+
+print('Theta computed from gradient descent: ', GradOut['theta'].transpose())
+
+##Predict price of a 1650 sqft 3 bedroom house, using the newly found theta.##
+test1=(np.matrix([1650,3])-mu)/std
+test1=np.append(np.matrix([1]),test1,1)
+predict1=np.matmul(test1,GradOut['theta'])
+print('Predicted price of a 1650 sq-ft, 3 br house is', predict1.tolist()[0][0], '\n')
+
+##Find the solution to gradient descent using the Normal Equations instead##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Resolving for optimal theta using the Normal Equations.')
+theta=normalEqn(np.append(ones,X,1),y) ##use NON-NORMALIZED X, with an extra column of ones
+print('Theta as computed by the normal equations: ', theta.transpose())
+
+temp = np.matrix([1, 1650, 3])
+price = temp*theta ##calculate the price of a 1650 sqft 3 bedroom house.
+print('\n Predicted price of a 1650 sqft, 3 bedroom house, (using normal equations): ', price)
