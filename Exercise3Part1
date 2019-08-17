@@ -1,0 +1,126 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.optimize as opt
+from scipy.io import loadmat
+
+
+#### Machine Learning Exercise 3 Part 1: One-vs-All Classification ####
+
+##display sample handwritten characters in a nice grid##
+def display_Data(X):  
+    fig, ax = plt.subplots()
+    m, n = np.shape(X)
+    ## compute size of one example
+    example_width = int(np.sqrt(n))  
+    example_height = int(n/example_width)
+    ## compute number of examples
+    display_rows = int(np.floor(np.sqrt(m)))
+    display_cols = int(np.ceil(m/display_rows))
+    ##add padding between each image
+    pad = 1
+    ##setup blank display
+    display_array = -np.ones((pad+display_rows*(example_height+pad), pad + display_cols*(example_width+pad)))
+    ##copy each example into a patch in the display
+    curr_ex=0
+    for i in range(display_rows):
+        for j in range(display_cols):
+            if curr_ex>=m:
+                break
+            ##otherwise, copy the patch
+            max_val=np.max(np.abs(X[curr_ex,:])) ##find max value in this example
+            ex_start_ht=pad + i * (example_height + pad)
+            ex_start_wd=pad + j * (example_width + pad)
+            display_array[ex_start_ht:ex_start_ht + example_height, ex_start_wd:ex_start_wd+example_height] = X[curr_ex,:].reshape(example_height, example_width)/max_val
+            curr_ex=curr_ex+1
+        if curr_ex>=m:
+            break
+    plt.imshow(np.flipud(np.rot90(display_array))) ##rotated/flipped to get orientation right
+    plt.show()
+
+def lrCost(theta,X,y,lmbda):  ##cost function with regularization
+    p_1 = sigmoid(np.dot(X,theta))  ##predicted probability of label 1
+    log_2 = np.dot(np.log(p_1),-y) - np.dot(np.log(1-p_1),(1-y))
+    J=(log_2/len(y)).item(0)
+    J=J+lmbda*sum(np.power(theta[1:len(theta)],2))/(2*len(y))
+    return J
+
+def lrGrad(theta,X,y,lmbda):
+    p_1 = sigmoid(np.dot(X,theta))  ##predicted probability of label 1
+    error = p_1 - y.transpose() # difference between label and prediction
+    grad = np.dot(error, X) / y.size # gradient vector
+    temp=theta[0]
+    theta[0]=0
+    grad = grad + np.multiply(lmbda/y.size, theta)
+    theta[0]=temp
+    grad = np.asarray(grad).reshape(-1)
+    return grad
+
+##vectorized sigmoid function
+def sigmoid(z):
+    return 1 / (1 + np.exp(- z))
+
+##training for one-vs-all logistic regression
+def oneVsAll(X, y, num_labels, lmbda):
+    m,n=np.shape(X)
+    all_theta=np.zeros((num_labels,n+1))
+    X=np.append(np.matrix(np.ones(m)).transpose(),X,1) ##add a column of ones
+    init_theta=np.matrix(np.zeros((n+1,1)))
+    K=np.max(y)
+    for k in range(K):
+        thetak=opt.fmin_cg(lrCost, fprime=lrGrad, x0=init_theta, args=(X, (y==k+1).astype(int), lmbda), maxiter=50, retall=False, disp=False)
+        all_theta[k,:] = thetak
+    return all_theta
+
+## use a given value of theta to predict the label on each image
+def predictOneVsAll(theta,X):
+    m = X.shape[0]
+    #num_labels=all_theta.shape[0]
+    X=np.append(np.matrix(np.ones(m)).transpose(),X,1) ##add a column of ones
+    h_theta=sigmoid(np.matmul(X,theta.transpose()))
+    p = np.amax(h_theta,axis=1) ##maximum probability
+    g = np.where(h_theta==p)  ##location of max, i.e. label-1
+    return g
+    
+
+
+##First read the data in ##
+print('Loading and Visualizing Data\n')
+file = loadmat('ex3data1.mat')
+X = file['X']
+y = file['y']
+m=len(Xf[:,0])
+X=np.matrix(X)
+y=np.matrix(y)
+rand_indicies = np.random.permutation(m)
+sel=X[rand_indicies[1:100],:]
+##Display a random sample of 100 characters##
+display_Data(sel)
+
+##Test a vectorized logistic regression cost function with regularization##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Testing lrCost and lrGrad with regularization.')
+theta_t=[-2,-1,1,2] #test theta
+X_t=np.append(np.ones((5,1)),(np.array(range(15))+1)/10).reshape(4,5).transpose()
+y_t=np.array([1,0,1,0,1])
+lmbda_t=3
+J = lrCost(theta_t, X_t, y_t, lmbda_t)
+grad = lrGrad(theta_t, X_t, y_t, lmbda_t)
+print('With theta = ',theta_t)
+print('Cost computed =', J)
+print('Expected cost: 2.534819')
+print('Gradient =', grad)
+print('Expected gradient: [0.146561 ; -0.548558 ; 0.724722 ; 1.398003]')
+
+##Now start all-vs-one logistic regression training##
+input('\nProgram paused. Press enter to continue.\n')
+print('Training One-vs-All Logistic Regression...')
+lmbda=0.1
+input_layer_size=400 ## for 20x20 images
+num_labels=10 ##counting labels 0,1,..., 9
+all_theta=oneVsAll(X,y,num_labels,lmbda)
+print('Done!')
+
+##Prediction Accuracy##
+input('\nProgram paused.  Press enter to continue.\n')
+pred=predictOneVsAll(all_theta,X)
+print('Prediction accuracy on our training set is: ', np.mean(pred[1]+1==ymat.transpose())*100, '%')
