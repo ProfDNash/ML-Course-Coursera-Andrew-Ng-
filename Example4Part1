@@ -1,0 +1,247 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.optimize as opt
+from scipy.io import loadmat
+
+
+#### Machine Learning Exercise 4: Neural Network Learning ####
+
+##display handwritten characters in a nice grid##
+def displayData(X):#,example_width):  
+    fig, ax = plt.subplots()
+    #plt.gray()
+    m, n = np.shape(X)
+    ## compute size of one example
+    example_width = int(np.sqrt(n))  
+    example_height = int(n/example_width)
+    ## compute number of examples
+    display_rows = int(np.floor(np.sqrt(m)))
+    display_cols = int(np.ceil(m/display_rows))
+    ##add padding between each image
+    pad = 1
+    ##setup blank display
+    display_array = -np.ones((pad+display_rows*(example_height+pad), pad + display_cols*(example_width+pad)))
+    ##copy each example into a patch in the display
+    curr_ex=0
+    for i in range(display_rows):
+        for j in range(display_cols):
+            if curr_ex>=m:
+                break
+            ##otherwise, copy the patch
+            max_val=np.max(np.abs(X[curr_ex,:])) ##find max value in this example
+            ex_start_ht=pad + i * (example_height + pad)
+            ex_start_wd=pad + j * (example_width + pad)
+            display_array[ex_start_ht:ex_start_ht + example_height, ex_start_wd:ex_start_wd+example_height] = X[curr_ex,:].reshape(example_height, example_width)/max_val
+            curr_ex=curr_ex+1
+        if curr_ex>=m:
+            break
+    plt.imshow(np.flipud(np.rot90(display_array))) ##rotated/flipped to get orientation right
+    plt.show()
+
+##Neural Network cost function with regularization##
+def nnCost(nn_params, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda):  
+    ##reshape Theta1 and Theta2 from nn_params
+    Theta1=np.reshape(nn_params[0:hidden_layer_size * (input_layer_size + 1)], (hidden_layer_size, input_layer_size + 1))
+    Theta2=np.reshape(nn_params[hidden_layer_size * (input_layer_size + 1):], (num_labels, hidden_layer_size + 1))
+    ##create vectorized version of y
+    m=X.shape[0]
+    yVec=np.zeros((m,num_labels))
+    for i in range(m):
+        yVec[i,y[i].item(0)-1] = 1  ##shift by -1 to account for vector entries 0-9 corr to labels 1-10
+    
+    a1=np.append(np.matrix(np.ones(m)).transpose(),X,1) ##add a column of ones
+    a2=sigmoid(np.matmul(a1,Theta1.transpose()))
+    a2=np.append(np.matrix(np.ones(a2.shape[0])).transpose(),a2,1) ##add a column of ones
+    a3=sigmoid(np.matmul(a2,Theta2.transpose()))
+    J=np.sum(np.multiply(-yVec,np.log(a3)) - np.multiply((1-yVec),np.log(1-a3)), axis=None)/m
+    ##add regularization
+    Theta1_reg = np.zeros(Theta1.shape)
+    Theta1_reg[:,1:] = Theta1[:,1:]
+    Theta2_reg = np.zeros(Theta2.shape)
+    Theta2_reg[:,1:] = Theta2[:,1:]
+    J=J+lmbda*np.sum(np.power(Theta1_reg,2))/(2*m) ##Theta1 regularization
+    J=J+lmbda*np.sum(np.power(Theta2_reg,2))/(2*m) ##Theta1 regularization
+    return J
+
+##Neural Network gradient with regularization##
+def nnGrad(nn_params, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda):  
+    ##reshape Theta1 and Theta2 from nn_params
+    Theta1=np.reshape(nn_params[0:hidden_layer_size * (input_layer_size + 1)], (hidden_layer_size, input_layer_size + 1))
+    Theta2=np.reshape(nn_params[hidden_layer_size * (input_layer_size + 1):], (num_labels, hidden_layer_size + 1))
+    ##create vectorized version of y
+    m=X.shape[0]
+    yVec=np.zeros((m,num_labels))
+    for i in range(m):
+        yVec[i,y[i].item(0)-1] = 1  ##shift by -1 to account for vector entries 0-9 corr to labels 1-10
+    
+    a1=np.append(np.matrix(np.ones(m)).transpose(),X,1) ##add a column of ones
+    a2=sigmoid(np.matmul(a1,Theta1.transpose()))
+    a2=np.append(np.matrix(np.ones(a2.shape[0])).transpose(),a2,1) ##add a column of ones
+    a3=sigmoid(np.matmul(a2,Theta2.transpose()))
+
+    delta3 = a3 - yVec
+    delta2 = np.multiply(np.dot(delta3,Theta2),np.multiply(a2,(1-a2)))
+    Delta1 = np.matmul(delta2[:,1:].transpose(),a1)
+    Delta2 = np.matmul(delta3.transpose(),a2)
+    Theta1_grad = Delta1/m
+    Theta2_grad = Delta2/m
+    ###add regularization
+    Theta1_reg = np.zeros(Theta1.shape)
+    Theta1_reg[:,1:] = Theta1[:,1:]
+    Theta2_reg = np.zeros(Theta2.shape)
+    Theta2_reg[:,1:] = Theta2[:,1:]
+    Theta1_grad = Theta1_grad + (lmbda/m)*Theta1_reg
+    Theta2_grad = Theta2_grad + (lmbda/m)*Theta2_reg
+    grad = np.append(np.array(Theta1_grad),np.array(Theta2_grad))
+    
+    return grad
+
+##Vectorized Sigmoid Function##
+def sigmoid(z):
+    return 1 / (1 + np.exp(- z))
+
+##Vectorized Sigmoid Gradient##
+def sigmoidGrad(z):
+    g=np.multiply(sigmoid(z),(1-sigmoid(z)))
+    return g
+
+##Randomly Initialize Weights for a given layer with L_in input connections and L_out output ones##
+def randInitWeights(L_in, L_out):
+    epsilon_init=0.12
+    W = np.random.rand(L_out,L_in+1)*2*epsilon_init - epsilon_init
+    return W
+
+##Numerical gradient calculation##
+def computeNumericalGrad(theta, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda):
+    e=.0001
+    numgrad=np.zeros(theta.shape[0])
+    perturb=np.zeros(theta.shape[0])
+    for p in range(theta.shape[0]):
+        perturb[p] = e
+        loss1 = nnCost(theta-perturb, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda)
+        loss2 = nnCost(theta+perturb, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda)
+        ##compute numerical gradient
+        numgrad[p] =  (loss2 - loss1)/(2*e)
+        perturb[p] = 0
+    return numgrad
+    
+
+##Test how well our gradient function matches the numerical gradient##
+def checkNNGradients(lmbda=0):
+    input_layer_size = 3
+    hidden_layer_size = 5
+    num_labels = 3
+    m = 5
+    ##Generate some random test data
+    ##initialize weights using sine function -- consistent and thus good for debugging
+    Theta1 = np.sin(range(hidden_layer_size*(input_layer_size+1))).reshape(hidden_layer_size,input_layer_size+1)
+    Theta2 = np.sin(range(num_labels*(hidden_layer_size+1))).reshape(num_labels,hidden_layer_size+1)
+    X = np.sin(range(m*input_layer_size)).reshape(m,input_layer_size)
+    y = np.matrix(np.remainder(range(m),num_labels)).transpose() + 1
+    nn_params = np.append(Theta1,Theta2) ##unroll parameters
+    #cost = nnCost(nn_params, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda)
+    grad = nnGrad(nn_params, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda)
+    numgrad = computeNumericalGrad(nn_params, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda)
+    print(np.append(grad.reshape((len(grad),1)),numgrad.reshape((len(numgrad),1)),1))
+    print('The two gradients above should be very similar')
+    ##evaluate the norm of the difference
+    diff = np.linalg.norm(numgrad - grad)/np.linalg.norm(numgrad+grad)
+    print('If backpropagation is correct then the difference should be small, i.e. less than 1e-9')
+    print('Difference: ', diff)
+
+## use a given value of theta to predict the label on each image##
+def predict(theta1, theta2, X):
+    m = X.shape[0]
+    a1=np.append(np.matrix(np.ones(m)).transpose(),X,1) ##add a column of ones
+    a2=sigmoid(np.matmul(a1,theta1.transpose()))
+    a2=np.append(np.matrix(np.ones(a2.shape[0])).transpose(),a2,1) ##add a column of ones
+    a3=sigmoid(np.matmul(a2,theta2.transpose()))
+    p = np.amax(a3,axis=1) ##maximum probability
+    g = np.where(a3==p)  ##location of max, i.e. label-1
+    return g
+
+
+##First read the data in and display a sample##
+file = loadmat('ex4data1.mat')
+X = file['X']
+y = file['y']
+X=np.matrix(X)
+m=X.shape[0]
+y=np.matrix(y)
+##Randomly select 100 data points to display##
+rand_indicies = np.random.permutation(m)
+sel=X[rand_indicies[1:100],:]
+
+print('Plotting 100 sample characters. \n')
+displayData(sel)
+
+
+##Next load the weights for an already trained neural network
+input('\nProgram paused.  Press enter to continue.\n')
+print('Loading Saved Neural Network Parameters.')
+fileW = loadmat('ex4weights.mat')
+Theta1 = fileW['Theta1']
+Theta2 = fileW['Theta2']
+##unroll the parameters into a single vector##
+nn_params = np.append(Theta1,Theta2)
+
+##Now calculate Cost (feedforward) for Neural Network
+print('Feedforward Using the Neural Network.')
+input_layer_size=400 ## for 20x20 images
+hidden_layer_size=25 ## 25 hidden units in neural network
+num_labels=10 ##counting labels 0,1,..., 9
+lmbda=0 ##not using regularization yet
+J = nnCost(nn_params, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda)
+print('Cost with loaded parameters (w/o regularization): ', J)
+print('Expected cost (approx): 0.287629')
+
+##Implement Regularization##
+input('\nProgram paused.  Press enter to continue.\n')
+lmbda=1
+J = nnCost(nn_params, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda)
+print('Cost with loaded parameters (w/ regularization): ', J)
+print('Expected cost (w/ lambda=1): 0.383770')
+
+
+##Test Sigmoid Gradient##
+input('\nProgram paused.  Press enter to continue.\n')
+print('\nEvaluating sigmoid gradient...\n')
+g = sigmoidGrad(np.matrix([-1, -0.5, 0, 0.5, 1]));
+print('Sigmoid gradient evaluated at [-1 -0.5 0 0.5 1]: \n', g)
+
+
+##Test backpropagation algorithm##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Checking backpropagation...')
+checkNNGradients()
+
+print('\nChecking backpropagation with regularization...')
+lmbda=3
+checkNNGradients(lmbda)
+debug_J = nnCost(nn_params, input_layer_size, hidden_layer_size, num_labels, X, y, lmbda)
+print('Cost at debugging parameters (for lambda=3) is: ', debug_J)
+print('Expected cost should be (approx): 0.576051')
+
+
+##Implement a two-layer neural network to classify digits##
+input('\nProgram paused.  Press enter to continue.\n')
+init_Theta1 = randInitWeights(input_layer_size, hidden_layer_size)
+init_Theta2 = randInitWeights(hidden_layer_size, num_labels)
+##unroll the parameters##
+init_nn_params = np.append(init_Theta1,init_Theta2)
+print('Training Neural Network...')
+min_nn_params=opt.fmin_cg(nnCost, init_nn_params, fprime=nnGrad, args=(input_layer_size, hidden_layer_size, num_labels, X, y, lmbda), maxiter=200)
+
+
+##Visualize the Neural Network Parameters##
+input('\nProgram paused.  Press enter to continue.\n')
+##reshape Theta1 and Theta2##
+mTheta1=np.reshape(min_nn_params[0:hidden_layer_size * (input_layer_size + 1)], (hidden_layer_size, input_layer_size + 1))
+mTheta2=np.reshape(min_nn_params[hidden_layer_size * (input_layer_size + 1):], (num_labels, hidden_layer_size + 1))
+
+print('Visualizing Neural Network')
+displayData(mTheta1[:,1:])
+
+##Check Prediction Accuracy##
+pred=predict(mTheta1, mTheta2, X)
+print('Prediction accuracy on our training set is', np.mean(pred[1]+1==y.transpose())*100, '%')
