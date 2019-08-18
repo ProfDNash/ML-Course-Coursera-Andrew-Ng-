@@ -1,0 +1,211 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.optimize as opt
+from scipy.io import loadmat
+
+
+#### Machine Learning Exercise 5: Regularized Linear Regression and Bias Variance ####
+
+##Cost Function for Linear Regression with regularization##
+def costReg(theta, X, y, lmbda):  
+    m = X.shape[0]
+    J=np.sum(np.square(np.matmul(X,theta)-y.transpose()))/(2*m)  ##no regularization
+    ##add regularization
+    J = J + (lmbda/m)*np.sum(np.power(theta[1:],2))
+    return J
+
+##Gradient for Linear Regression with regularization##
+def gradReg(theta, X, y, lmbda):  
+    m = X.shape[0]
+    grad = np.sum(np.matmul(np.matmul(X,theta)-y.transpose(), X), axis=0)/m  ##no regularization
+    ##add regularization
+    thetatemp=np.zeros(theta.shape)
+    thetatemp[1:] = theta[1:]
+    grad = grad + (lmbda/m)*thetatemp
+    return np.array(grad).flatten() ##minimization functions require that this be a 0-D array
+
+
+##Training for Linear Regression##
+def trainLinearReg(X, y, lmbda):
+    init_theta = np.zeros(X.shape[1])
+    theta = opt.fmin_bfgs(costReg, init_theta, fprime=gradReg, args=(X, y, lmbda), maxiter=200, disp=False)
+    return theta
+
+##Returns the training and cross validation errors##
+def learningCurve(X, y, Xval, yval, lmbda): 
+    m = X.shape[0]
+    error_train = np.zeros((m,1))
+    error_val = np.zeros((m,1))
+    for i in range(m):
+        theta_temp = trainLinearReg(X[:i+1,:],y[:i+1],lmbda)
+        error_train[i] = costReg(theta_temp,X[:i+1,:],y[:i+1],lmbda)
+        error_val[i] = costReg(theta_temp,Xval,yval,lmbda)
+        print('.', end='')
+    return error_train, error_val
+
+##Create Polynomial Features##
+def polyFeatures(X,p): 
+    X_poly=np.zeros((X.size,p))
+    for j in range(p):
+        X_poly[:,j] = np.array(np.power(X,j+1)).flatten()
+    return X_poly
+
+##Feature Normalization##
+def featureNormalize(X):
+    mu = np.mean(X,axis=0)
+    std= np.std(X,axis=0)
+    X_norm=(X-mu)/std
+    return X_norm, mu, std
+
+##Plot polynomial regression fit##
+def plotFit(X, y, mu, sigma, theta, p, lmbda):
+    x = np.array(np.arange(np.min(X)-10, np.max(X)+20, 0.1)).transpose()
+    x_poly = polyFeatures(x,p)
+    x_poly = (x_poly-mu)/sigma
+    x_poly = np.append(np.ones((x_poly.shape[0],1)),x_poly, 1)
+    plt.scatter(X.tolist(),y.tolist())  ##plot training data
+    plt.ylabel('Water flowing out of the dam') # Set the y-axis label
+    plt.xlabel('Change in water level') # Set the x-axis label
+    plt.plot(x, np.matmul(x_poly, theta))
+    plt.axis([-60,50,0,40])
+    plt.title('Polynomial Regression Fit (lambda = {})'.format(lmbda))
+    plt.show()
+    
+##Validation curve to pick the best lambda##
+def validationCurve(X, y, Xval, yval):
+    lmbda_vec = np.array([0, 0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 3, 10]).transpose()
+    error_train = np.zeros(len(lmbda_vec))
+    error_val = np.zeros(len(lmbda_vec))
+    for i in range(len(lmbda_vec)):
+        lmbda = lmbda_vec[i]
+        theta = trainLinearReg(X, y, lmbda)
+        error_train[i] = costReg(theta, X, y, lmbda)
+        error_val[i] = costReg(theta,Xval,yval,lmbda)
+    return lmbda_vec, error_train, error_val
+
+
+##First read the data in and display a sample##
+print('Loading and Visualizing Data...')
+file = loadmat('ex5data1.mat')
+X = np.matrix(file['X'])
+y = np.matrix(file['y'])
+Xval = np.matrix(file['Xval'])
+yval = np.matrix(file['yval'])
+Xtest = np.matrix(file['Xtest'])
+ytest = np.matrix(file['ytest'])
+m=X.shape[0]  ##number of examples
+
+plt.scatter(X.tolist(),y.tolist())  ##plot training data
+plt.ylabel('Water flowing out of the dam') # Set the y-axis label
+plt.xlabel('Change in water level') # Set the x-axis label
+plt.show()
+
+
+##Test Linear Regression Cost Function and Gradient with Regularization##
+input('\nProgram paused.  Press enter to continue.\n')
+theta=np.array([1,1]).transpose()
+J = costReg(theta, np.append(np.ones((X.shape[0],1)),X, 1),y,1)
+print('Cost at theta=[1;1] should be approx 303.993192 \n', J)
+grad = gradReg(theta, np.append(np.ones((X.shape[0],1)),X, 1),y,1)
+print('Gradient at theta=[1;1] should be approx [-15.303016; 598.250744] \n', grad)
+
+
+##begin Training Linear Regression##
+##Note, this will not give a good fit because the data is non-linear
+input('\nProgram paused.  Press enter to continue.\n')
+lmbda=0
+theta = trainLinearReg(np.append(np.ones((X.shape[0],1)),X, 1),y,lmbda)
+##plot fit over data
+plt.scatter(X.tolist(),y.tolist())  ##plot training data
+plt.ylabel('Water flowing out of the dam') # Set the y-axis label
+plt.xlabel('Change in water level') # Set the x-axis label
+plt.plot(X,np.dot(np.append(np.ones((X.shape[0],1)),X, 1),theta).transpose(), 'r')
+plt.title('Linear Regression Fit')
+plt.show()
+
+##Create the Learning Curve for this Linear Regression
+input('\nProgram paused.  Press enter to continue.\n')
+print('Generating Learning Curve...', end='')
+lmbda=0
+error_train,error_val = learningCurve(np.append(np.ones((X.shape[0],1)),X, 1),y,np.append(np.ones((Xval.shape[0],1)),Xval, 1),yval,lmbda)
+print('Done!')
+plt.plot(range(m),error_train, label='Train')
+plt.plot(range(m),error_val, label='Cross Validation')
+plt.ylabel('Error') # Set the y-axis label
+plt.xlabel('Number of Training Examples') # Set the x-axis label
+plt.legend()
+plt.title('Learning Curve for Linear Regression')
+plt.show()
+
+print('# Training Examples \t Train Error \t Cross Validation Error')
+for i in range(m):
+    print('\t', i, '\t\t', error_train[i], '\t', error_val[i])
+
+
+##Add feature mapping to run polynomial regression##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Feature mapping and variable normalization.')
+p = 8  ##maximum degree for features
+##Map X into polynomial features and then normalize##
+X_poly = polyFeatures(X,p)
+X_poly, mu, sigma = featureNormalize(X_poly)
+X_poly = np.append(np.ones((X_poly.shape[0],1)),X_poly, 1) ##add a column of ones 
+##Map Xtest similarly
+X_poly_test = polyFeatures(Xtest,p)
+X_poly_test = (X_poly_test - mu)/sigma ##normalize using same mu and sigma from before
+X_poly_test = np.append(np.ones((X_poly_test.shape[0],1)),X_poly_test, 1) ##add a column of ones 
+##Map Xval similarly
+X_poly_val = polyFeatures(Xval,p)
+X_poly_val = (X_poly_val - mu)/sigma ##normalize using same mu and sigma from before
+X_poly_val = np.append(np.ones((X_poly_val.shape[0],1)),X_poly_val, 1) ##add a column of ones
+
+print('Printing a single normalized training example: \n', X_poly[0,:])
+
+
+##Train polynomial regression and visualize the learning curve##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Training Polynomial Regression...')
+lmbda=0
+theta_poly = trainLinearReg(X_poly,y,lmbda)
+plotFit(X, y, mu, sigma, theta_poly, p, lmbda)
+
+print('Generating Learning Curve for Polynomial Regression...', end='')
+error_train, error_val = learningCurve(X_poly,y,X_poly_val,yval, lmbda)
+print('Done!')
+
+plt.plot(range(m),error_train, label='Train')
+plt.plot(range(m),error_val, label='Cross Validation')
+plt.ylabel('Error') # Set the y-axis label
+plt.xlabel('Number of Training Examples') # Set the x-axis label
+plt.legend()
+plt.title('Learning Curve for Polynomial Regression')
+plt.show()
+
+print('# Training Examples \t Train Error \t Cross Validation Error')
+for i in range(m):
+    print('\t', i, '\t\t', error_train[i], '\t', error_val[i])
+
+
+##Calculate validation curve for selecting lambda##
+input('\nProgram paused. Press enter to continue.\n')
+lmbda_vec, error_train, error_val = validationCurve(X_poly, y, X_poly_val, yval)
+plt.plot(lmbda_vec, error_train, label='Train')
+plt.plot(lmbda_vec, error_val, label='Cross Validation')
+plt.ylabel('Error') # Set the y-axis label
+plt.xlabel('Lambda') # Set the x-axis label
+plt.legend()
+plt.title('Validation Curve for Polynomial Regression')
+plt.show()
+
+print('Lambda \t Train Error \t Cross Validation Error')
+for i in range(len(lmbda_vec)):
+    print(lmbda_vec[i], '\t', error_train[i], '\t', error_val[i])
+
+##Select lambda with minimum cross-validation error and test fit##
+input('\nProgram paused.  Press enter to continue.\n')
+lmbda = lmbda_vec[np.argmin(error_val)]
+print('Optimal lambda selected is: ', lmbda)
+print('Training Polynomial Regression and checking error on test set...')
+theta3 = trainLinearReg(X_poly,y,lmbda)
+error_test = costReg(theta3, X_poly_test, ytest, lmbda)
+print('Error =', error_test)
