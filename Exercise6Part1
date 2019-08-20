@@ -1,0 +1,105 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.io import loadmat
+from sklearn import svm
+
+
+#### Machine Learning Exercise 6 Part 1: Support Vector Machines ####
+
+def plotData(X,y):  ##scatterplot with multiple marks
+    fig, ax = plt.subplots()
+    accepted=np.where(y==1)
+    denied=np.where(y==0)
+    plt.scatter(X[denied,0], X[denied,1], marker=u'o')
+    plt.scatter(X[accepted,0], X[accepted,1], marker=u'+') 
+    plt.legend(['y=0', 'y=1'])
+
+
+##Visualize Dataset #1##
+file1 = loadmat('ex6data1.mat')
+X = file1['X']
+y = file1['y'].astype(int)
+y = y.reshape((y.size,))
+plotData(X,y)
+plt.title('Dataset #1')
+plt.show()
+
+##Use built in Linear SVM from Scikit##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Training Linear SVM from Scikit...')
+Copts=[0.1, 1, 10, 100, 1000]
+for c in Copts:
+    input('Press enter to see results with C={}.'.format(c))
+    svc = svm.LinearSVC(C=c, max_iter=10000)
+    svc.fit(X, y)
+    print('Prediction Accuracy (w/ C={}): '.format(c), svc.score(X, y))
+    decision = svc.decision_function(X)
+    plt.scatter(X[:,0], X[:,1], s=50, c=decision, cmap='seismic')
+    plt.title('Linear SVM (C={}) Classification Confidence'.format(c))
+    plt.show()
+
+##Visualize Dataset #2##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Loading and visualizing Dataset #2')
+file2 = loadmat('ex6data2.mat')
+X = file2['X']
+y = file2['y'].astype(int)
+y = y.reshape((y.size,))
+plotData(X,y)
+plt.title('Dataset #2')
+plt.show()
+
+
+##Train SVM with RBF (Gaussian) Kernel##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Training Gaussian SVM from Scikit...')
+svc = svm.SVC(C=100, gamma=10, probability=True)
+svc.fit(X, y)
+print('Prediction Accuracy =', svc.score(X, y))
+prob = svc.predict_proba(X)[:,0]
+plt.scatter(X[:,0], X[:,1], s=50, c=prob, cmap='seismic')
+plt.title('Gaussian SVM (C=100) Classification Confidence')
+plt.show()
+
+
+##Visualize Dataset #3##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Loading and visualizing Dataset #3')
+file3 = loadmat('ex6data3.mat')
+X = file3['X']
+y = file3['y'].astype(int)
+y = y.reshape((y.size,))
+Xval = file3['Xval']
+yval = file3['yval'].astype(int)
+yval = yval.reshape((yval.size,))
+plotData(X,y)
+plt.title('Dataset #3')
+plt.show()
+
+##Find 'optimal' parameters for Gaussian SVM##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Searching for optimal parameters for Gaussian SVM...')
+Cs = [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100]
+Gammas = [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100]
+best_score = 0
+best_params = {'C': None, 'gamma': None}
+for c in Cs:
+    for Gamma in Gammas:
+        svc = svm.SVC(C=c, gamma=Gamma)
+        svc.fit(X, y)
+        score = svc.score(Xval, yval)
+        if score>best_score:
+            best_score=score
+            best_params['C'] = c
+            best_params['gamma'] = Gamma
+print('Best score: ', best_score, '\t Optimal Parameters: ', best_params)
+
+##Visualize the SVM classification probabilities with the optimal parameters##        
+input('\nProgram paused.  Press enter to continue.\n')
+print('Visualizing the classification probabilities with optimal parameters.')
+svc = svm.SVC(C=best_params['C'], gamma = best_params['gamma'], probability=True)
+svc.fit(X,y)
+prob = svc.predict_proba(X)[:,0]
+plt.scatter(X[:,0], X[:,1], s=50, c=prob, cmap='seismic')
+plt.title('Gaussian SVM Classification Confidence with Optimal Parameters')
+plt.show()
