@@ -1,0 +1,114 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.io import loadmat
+import imageio
+
+
+#### Machine Learning Exercise 7 Part 1: PCA and K-means Clustering ####
+
+##Compute centroid memberships for every example based on given centroids##
+def findClosestCentroids(X, centroids):
+    K = centroids.shape[0]
+    m = X.shape[0] ##number of examples
+    idx = np.zeros(m)
+    for i in range(m):
+        dist = np.zeros(K)
+        for k in range(K):
+            dist[k] = np.matmul(X[i,:] - centroids[k,:], (X[i,:] - centroids[k,:]).transpose())
+        idx[i] = np.argmin(dist)
+    return idx
+
+##Compute the new centroids based on given memberships##
+def computeCentroids(X, idx, K):
+    n = X.shape[1]
+    centroids = np.zeros((K,n))
+    for k in range(K):
+        clusterk = np.where(idx==k)[0] ##find all examples in cluster k
+        centroids[k,:] = np.sum(X[clusterk,:],0)/len(clusterk)
+    return centroids
+
+##Plot K-Means Clustering Progress##
+def plotProgress(X, centroids, previous, idx, K, i):
+    plt.scatter(X[:,0], X[:,1], c=idx)  ##plot examples colored by membership
+    plt.scatter(centroids[:,0], centroids[:,1], c='r', marker='x', s=100) ##plot centroids
+    ##plot lines from old centroids to new ones##
+    for j in range(centroids.shape[0]):
+        plt.plot([previous[j,0], centroids[j,0]], [previous[j,1], centroids[j,1]], c='r')
+    plt.title('Iteration Number {}'.format(i+1))
+    plt.show()
+    
+
+##K-Means clustering algorithm##
+def runKMeans(X, centroids, max_iters, plot_progress=False):
+    m,n = X.shape
+    K = centroids.shape[0]
+    previous_centroids=centroids
+    for i in range(max_iters):
+        print('K-means iteration {} of {}'.format(i+1, max_iters))
+        idx = findClosestCentroids(X, centroids)
+        ##Optionally plot progress##
+        if plot_progress:
+            plotProgress(X, centroids, previous_centroids, idx, K, i)
+            previous_centroids = centroids
+            input('Press enter to continue.')
+        centroids = computeCentroids(X, idx, K)
+    return centroids, idx
+
+
+##Load the Data and Initial Conditions##
+file = loadmat('ex7data2.mat')
+X = file['X']
+K = 3 ##3 centroids##
+init_centroids = np.array([3,3, 6,2, 8,5]).reshape((3,2)) ##select an initial set of centroids##
+
+
+##Find the closest centroid for the examples using the initial conditions##
+print('Finding the closest centroids...')
+idx = findClosestCentroids(X, init_centroids)
+print('Closest centroids for the first 3 examples:')
+print(idx[0:3])
+print('(the closest centroids should be 0, 2, 1 respectively)')
+
+
+##Compute means based on the centroid memberships##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Computing centroid means...')
+centroids=computeCentroids(X, idx, K)
+print('Centroids computed after initial finding of closest centroids:')
+print(centroids)
+print('(the centroids should be)')
+print(np.array([2.428301, 3.157924, 5.813503, 2.633656, 7.119387, 3.616684]).reshape((3,2)))
+
+
+##Run K-means Clustering##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Running K-means clustering on an example dataset.')
+max_iters = 10
+centroids, idx = runKMeans(X, init_centroids, max_iters, True)
+print('Done!')
+
+##Run K-means clustering on an image##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Running K-means clustering on pixels from an image.')
+A = imageio.imread('bird_small.png')
+A = A/255  ##convert all numbers to 0-1##
+X = A.reshape((A.shape[0]*A.shape[1], 3))
+K = 16
+##choose K random examples to be the initial centroids##
+randK = np.random.permutation(np.arange(X.shape[0]))[:K] 
+init_centroids = X[randK,:]
+centroids, idx = runKMeans(X, init_centroids, max_iters)
+
+
+##Image Compression##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Applying K-Means to compress the image...')
+idx = findClosestCentroids(X, centroids)
+X_recovered = centroids[idx.astype(int),:]  ##replace every pixel with its centroid value##
+X_recovered = X_recovered.reshape((A.shape[0],A.shape[1],3))
+plt.imshow(A)
+plt.title('Original image')
+plt.show()
+plt.imshow(X_recovered)
+plt.title('Compressed with {} colors'.format(K))
+plt.show()
