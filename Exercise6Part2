@@ -1,0 +1,126 @@
+import numpy as np
+from scipy.io import loadmat
+from sklearn import svm
+import re  ##Regular Expressions
+import nltk  ##Natural Language Toolkit
+
+#### Machine Learning Exercise 6 Part 2: Spam Classification with SVMs ####
+
+def getVocabList():
+    fhand=open('vocab.txt', 'r')
+    data=fhand.read().split('\n')
+    n = 1899  ##total number of words in the dictionary##
+    vocabList = list()
+    for i in range(n):
+        vocabList.append(data[i].split()[1]) ##drop the index, add the word to the list##
+    return vocabList
+
+def processEmail(file, vocab):
+    email_contents = file.lower()  ##all lowercase##
+    email_contents = re.sub('<[^<>]+>', ' ', email_contents) ##strip HTML##
+    email_contents = re.sub('[0-9]+', 'number', email_contents)  ##convert numbers to generic 'number'##
+    email_contents = re.sub('[^\s]+@[^\s]+', 'emailaddr', email_contents)  ##scrub specific e-mail addresses##
+    email_contents = re.sub('[$]+', 'dollar', email_contents)  ##change dollar signs to 'dollar'##
+    
+    ##Split the E-mail into distinct words -- ignoring punctuation##
+    words = re.split('\.|\n|\r|\?|,|:|/|>|@|\$|-|&|\*|!|\+|=|\(|\)|\{|\}|\[|\]|\'|\"|<|;|%|#| ', email_contents)
+    ##convert word list to a list of indices corresponding to the Vocab List##
+    word_idx = list() ##start with empty list##
+    print('\n====Processed E-mail ====\n\n')
+    l=0
+    for w in words:
+        if len(w)<1:
+            continue ##skip empty words##
+        try:
+            w = nltk.PorterStemmer.stem(w) ##reduce words to their stems##
+        except:
+            pass
+        
+        for i in range(len(vocab)):
+            if w == vocab[i]:
+                word_idx.append(i)
+                break
+        if l+len(w)+1 > 78:
+            print('\n') ##move to next line if text gets too long##
+            l=0
+        print(w, end=' ')
+        l = l + len(w)+1
+    print('\n===============================================\n') #print footer##
+    return word_idx
+
+def emailFeatures(idx):  #return a feature vector for a given list of word indices##
+    n = 1899  ##length of VocabList##
+    x = np.zeros(n)
+    for i in idx:
+        x[i] = 1
+    return x
+    
+
+
+##First preprocess the data##
+print('Preprocessing e-mail data.')
+vocab = getVocabList()
+fhand = open('emailSample1.txt', 'r')
+file_content = fhand.read()
+indices = processEmail(file_content, vocab)
+print('Word Indices:', end=' ')
+for i in indices:
+    print(i, end=' ')
+
+##Extract features from a sample e-mail##
+input('\nProgram paused. Press enter to continue.\n')
+print('Extracting features from sample e-mail.')
+features = emailFeatures(indices)
+print('Length of Feature Vector =', len(features))
+print('Number of non-zero entries =', np.sum(features))
+
+##Train Linear SVM for Spam Classification##
+input('\nProgram paused.  Press enter to continue.\n')
+file1 = loadmat('spamTrain.mat')
+X = file1['X']
+y = file1['y'].astype(int)
+y = y.reshape((y.size,))
+
+print('Training Linear SVM (spam classification) from Scikit...')
+svc = svm.LinearSVC()
+svc.fit(X, y)
+print('Prediction Accuracy on training data =', svc.score(X, y))
+
+##Test Accuracy on Test Data##
+input('\nProgram paused. Press enter to continue.\n')
+print('Evaluating the trained linear SVM on a test set.')
+file2 = loadmat('spamTest.mat')
+Xtest = file2['Xtest']
+ytest = file2['ytest'].astype(int)
+ytest = ytest.reshape((ytest.size,))
+print('Prediction Accuracy on test data =', svc.score(Xtest,ytest))
+
+##Look for top predictors of spam##
+input('\nProgram paused. Press enter to continue.\n')
+##create a pairing of vocab words with their weights##
+predictors = np.append(np.array(vocab).reshape((1,len(vocab))),svc.coef_,axis=0).transpose()
+sorted_preds = predictors[np.argsort(predictors[:,1].astype('float64'))]
+print('The top 15 predictors are:\n')
+for i in range(15):
+    print(sorted_preds[sorted_preds.shape[0]-i-1,:])
+
+
+## Try classifying a sample e-mail##
+input('\nProgram paused. Press enter to continue.\n')
+flag=0
+while flag==0:
+    filename = input('Enter the filename (w/ extension) for a sample e-mail to classify: ')
+    flag=1
+    try:
+        fhand = open(filename, 'r')
+    except:
+        print('Cannot open that file or file not found.')
+        flag=0
+
+sample_content = fhand.read()
+indices = processEmail(sample_content, vocab)
+x = emailFeatures(indices).reshape((1,len(vocab)))
+p = svc.predict(x).item(0)
+
+print('Processed', filename, 'using Spam Classifier:   ', p)
+print('1 indicates spam, 0 indicates not spam')
