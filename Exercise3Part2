@@ -35,6 +35,11 @@ def displayData(X):#,example_width):  ##display 2D data in a nice grid
             break
     plt.imshow(np.flipud(np.rot90(display_array))) ##rotated/flipped to get orientation right
     plt.show()
+    
+
+##Vectorized Sigmoid Function##
+def sigmoid(z):
+    return 1 / (1 + np.exp(- z))
 
 ## use a given value of theta to predict the label on each image##
 def predict(theta1, theta2, X):
