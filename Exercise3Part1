@@ -88,7 +88,7 @@ print('Loading and Visualizing Data\n')
 file = loadmat('ex3data1.mat')
 X = file['X']
 y = file['y']
-m=len(Xf[:,0])
+m=len(X[:,0])
 X=np.matrix(X)
 y=np.matrix(y)
 rand_indicies = np.random.permutation(m)
