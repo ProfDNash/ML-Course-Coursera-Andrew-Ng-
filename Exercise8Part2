@@ -1,0 +1,216 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.io import loadmat
+import scipy.optimize as opt
+
+
+#### Machine Learning Exercise 8 Part 2: Collaborative Filtering ####
+
+##Collaborative Filtering Cost Function##
+def cofiCost(params, Y, R, num_users, num_movies, num_features, lmbda):
+    ##unfold parameters##
+    X = params[:num_movies*num_features].reshape((num_movies, num_features))
+    Theta = params[num_movies*num_features:].reshape((num_users, num_features))
+    ##first without regularization##
+    J = np.sum(np.multiply(np.power(np.matmul(X,Theta.transpose())-Y,2), R))/2
+    ##Add regularization##
+    J = J + np.sum(np.power(Theta,2))*(lmbda/2) + np.sum(np.power(X,2))*(lmbda/2)
+    return J
+
+##Collaborative Filtering Gradient##
+def cofiGrad(params, Y, R, num_users, num_movies, num_features, lmbda):
+    ##unfold parameters##
+    X = params[:num_movies*num_features].reshape((num_movies, num_features))
+    Theta = params[num_movies*num_features:].reshape((num_users, num_features))
+    X_grad = np.zeros(X.shape)
+    Theta_grad = np.zeros(Theta.shape)
+    ##first without regularization##
+    for k in range(num_features):
+        for i in range(num_movies):
+            X_grad[i,k] = np.sum(np.multiply(np.multiply(np.matmul(Theta,X[i,:].transpose())-Y[i,:].transpose(),R[i,:].transpose()),Theta[:,k]))
+        for j in range(num_users):
+            Theta_grad[j,k] = np.matmul(np.multiply(np.matmul(Theta[j,:],X.transpose())-Y[:,j].transpose(),R[:,j].transpose()),X[:,k])
+    ##Add regularization##
+    X_grad = X_grad + lmbda*X
+    Theta_grad = Theta_grad + lmbda*Theta
+    ##re-roll params##
+    grad = np.append(X_grad.reshape((X_grad.size,1)), Theta_grad.reshape((Theta_grad.size,1)),0)
+    return grad.reshape((grad.shape[0],))
+
+##Numerical gradient calculation##
+def computeNumericalGradient(params, Y, R, num_users, num_movies, num_features, lmbda):
+    e=.0001
+    numgrad=np.zeros(params.shape[0])
+    perturb=np.zeros((params.shape[0],1))
+    for p in range(params.shape[0]):
+        perturb[p,0] = e
+        loss1 = cofiCost(params-perturb, Y, R, num_users, num_movies, num_features, lmbda)
+        loss2 = cofiCost(params+perturb, Y, R, num_users, num_movies, num_features, lmbda)
+        ##compute numerical gradient
+        numgrad[p] =  (loss2 - loss1)/(2*e)
+        perturb[p,0] = 0
+    return numgrad
+    
+
+##Check gradients##
+def checkGradients(lmbda=0):
+    ##Create a small test problem##
+    Xt = np.random.rand(4,3)
+    Thetat = np.random.rand(5,3)
+    Y = np.matmul(Xt,Thetat.transpose())
+    ##zero out most entries##
+    Y[np.where(np.random.rand(Y.shape[0],Y.shape[1])>0.5)]=0
+    R = np.zeros(Y.shape)
+    R[np.where(Y!=0)]=1
+    ##Run gradient checking##
+    X = np.random.randn(Xt.shape[0],Xt.shape[1])
+    Theta = np.random.randn(Thetat.shape[0],Thetat.shape[1])
+    num_users = Y.shape[1]
+    num_movies = Y.shape[0]
+    num_features = Thetat.shape[1]
+    params=np.append(X.reshape((X.size,1)),Theta.reshape((Theta.size,1)),0)
+    numgrad = computeNumericalGradient(params, Y, R, num_users, num_movies, num_features, lmbda)
+    grad = cofiGrad(params, Y, R, num_users, num_movies, num_features, lmbda)
+    print(np.append(grad.reshape((len(grad),1)),numgrad.reshape((len(numgrad),1)),1))
+    print('The above two columns should be very similar')
+    print('Left-Analytical Gradient, Right-NumericalGradient')
+    ##evaluate the norm of the difference##
+    numgrad = numgrad.reshape((numgrad.shape[0],1))
+    diff = np.linalg.norm(numgrad - grad)/np.linalg.norm(numgrad+grad)
+    print('If cost function is correct then the difference should be small, i.e. less than 1e-9')
+    print('Relative Difference: ', diff)
+    
+##Normalize Ratings##
+def normalizeRatings(Y,R):
+    m, n = Y.shape
+    Ymean = np.zeros((m,1))
+    Ynorm = np.zeros(Y.shape)
+    for i in range(m):
+        idx = np.where(R[i]==1)[0]
+        Ymean[i,0] = np.mean(Y[i,idx])
+        Ynorm[i,idx] =  Y[i,idx] - Ymean[i,0]
+    return Ynorm, Ymean
+
+
+##Load and Visualize the Data##
+print('Loading Movie Ratings Dataset')
+file = loadmat('ex8_movies.mat')
+Y = file['Y']
+R = file['R']
+print('Average rating for movie 1 (Toy Story) : {}/5'.format(np.mean(Y[0,np.where(R[0,:]==1)[0]])))
+##Visualize ratings##
+plt.imshow(Y)
+plt.ylabel('Movies')
+plt.xlabel('Users')
+plt.show()
+
+
+##Collaborative Filtering Cost Function##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Loading pre-trained weights...')
+file2 = loadmat('ex8_movieParams.mat')
+X = file2['X']
+Theta = file2['Theta']
+num_users = file2['num_users']
+num_movies = file2['num_movies']
+num_features = file2['num_features']
+##reduce the dataset size so that it runs faster##
+num_users = 4
+num_movies = 5
+num_features = 3
+X = X[:num_movies, :num_features]
+Theta = Theta[:num_users, :num_features]
+Y = Y[:num_movies, :num_users]
+R = R[:num_movies, :num_users]
+params = np.append(X.reshape((X.size,1)), Theta.reshape((Theta.size,1)), 0)
+
+J = cofiCost(params, Y, R, num_users, num_movies, num_features, 0)
+print('Cost at loaded parameters: ', J)
+print('(this value should be approximately 22.22)')
+
+
+##Check the Collaborative Filtering Gradient##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Checking Gradients (without regularization)...')
+checkGradients()
+
+
+##Check Cost with Regularization##
+input('\nProgram paused.  Press enter to continue.\n')
+J = cofiCost(params, Y, R, num_users, num_movies, num_features, 1.5)
+print('Cost at loaded parameters (with lambda=1.5): ', J)
+print('(this value should be approximately 31.34)')
+
+
+##Check gradient with Regularization##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Checking Gradients (with regularization)...')
+checkGradients(1.5)
+
+
+##Enter ratings for a new user##
+input('\nProgram paused.  Press enter to continue.\n')
+fhand = open('movie_ids.txt')
+data = fhand.read().split('\n')
+n = 1682  ##number of movies##
+movieList=list()
+for i in range(n):
+    idx, movieName = data[i].split(' ', 1)
+    movieList.append(movieName)
+my_ratings = np.zeros(n)
+my_ratings[0] = 4  ##Toy Story##
+my_ratings[97] = 2  ##Silence of the Lambs##
+##more ratings##
+my_ratings[6] = 3
+my_ratings[11] = 5
+my_ratings[53] = 4
+my_ratings[63] = 5
+my_ratings[65] = 3
+my_ratings[68] = 5
+my_ratings[182] = 4
+my_ratings[225] = 5
+my_ratings[354] = 5
+print('New user ratings:')
+for i in range(len(my_ratings)):
+    if my_ratings[i] > 0:
+        print('Rated {} for {}'.format(my_ratings[i], movieList[i]))
+
+##Learn Movie Ratings##
+input('\nProgram paused.  Press enter to continue.\n')
+print('Training collaborative filtering...')
+print('(this may take several minutes...)')
+##reload data##
+Y = file['Y']
+R = file['R']
+Y = np.append(Y,my_ratings.reshape((n,1)),1)
+R = np.append(R,my_ratings.reshape((n,1))!=0, 1)
+##Normalize Ratings##
+Ynorm, Ymean = normalizeRatings(Y,R)
+##Set initial parameters##
+num_users = Y.shape[1]
+num_movies = Y.shape[0]
+num_features = 10
+X = np.random.randn(num_movies, num_features)
+Theta = np.random.randn(num_users, num_features)
+init_params = np.append(X.reshape((X.size,1)), Theta.reshape((Theta.size,1)),0)
+lmbda = 10
+##minimize cost with fmin_cg##
+theta=opt.fmin_cg(cofiCost, fprime=cofiGrad, x0=init_params, args=(Ynorm, R, num_users, num_movies, num_features, lmbda), maxiter=50)
+##unfold parameters##
+X = theta[:num_movies*num_features].reshape((num_movies, num_features))
+Theta = theta[num_movies*num_features:].reshape((num_users, num_features))
+print('Recommender system training completed.')
+
+##Make recommendations##
+input('\nProgram paused.  Press enter to continue.\n')
+p = np.matmul(X,Theta.transpose())
+my_predictions = p[:,943]+Ymean.reshape((Ymean.shape[0],))
+idx = np.argsort(-my_predictions) ##negated to give descending sort##
+print('Top 10 Recommendations for you:')
+for i in range(10):
+    print('Predicting rating {:.1f} for movie {}.'.format(my_predictions[idx[i]], movieList[idx[i]]))
+
+print('Original Ratings Provided')
+for i in range(len(my_ratings)):
+    if my_ratings[i] > 0:
+        print('Rated {} for {}'.format(my_ratings[i], movieList[i]))
