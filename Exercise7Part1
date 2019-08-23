@@ -4,7 +4,7 @@ from scipy.io import loadmat
 import imageio
 
 
-#### Machine Learning Exercise 7 Part 1: PCA and K-means Clustering ####
+#### Machine Learning Exercise 7 Part 1: K-means Clustering ####
 
 ##Compute centroid memberships for every example based on given centroids##
 def findClosestCentroids(X, centroids):
